@@ -1,22 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Global Weekly Stats Dashboard</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 2rem; background:#f5f7fa; color:#333; }
-    h1 { margin-bottom: 1rem; }
-    table { width: 100%; border-collapse: collapse; background:#fff; box-shadow:0 2px 4px rgba(0,0,0,0.08); border-radius:0.5rem; overflow:hidden; }
-    th, td { padding: .75rem 1rem; border-bottom: 1px solid #e0e0e0; text-align:left; }
-    th { background:#0077cc; color:#fff; text-transform:uppercase; font-size:.9rem; letter-spacing:0.05em; }
-    tr:last-child td { border-bottom:none; }
-    .loading { color:#888; font-style:italic; }
-    #last-updated { margin-top:1rem; font-size:.85rem; color:#555; }
-    code { background:#eef; padding:0 4px; border-radius:4px; }
+    body{font-family:Arial,Helvetica,sans-serif;margin:2rem;background:#f5f7fa;color:#333}
+    h1{margin-bottom:1rem}
+    table{width:100%;border-collapse:collapse;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.08);border-radius:.5rem;overflow:hidden}
+    th,td{padding:.75rem 1rem;border-bottom:1px solid #e0e0e0;text-align:left}
+    th{background:#0077cc;color:#fff;text-transform:uppercase;font-size:.9rem;letter-spacing:.05em}
+    tr:last-child td{border-bottom:none}
+    .loading{color:#888;font-style:italic}
+    #last-updated{margin-top:1rem;font-size:.85rem;color:#555}
+    code{background:#eef;padding:0 4px;border-radius:4px}
   </style>
 </head>
 <body>
   <h1>Global Weekly Stats Dashboard</h1>
+
   <table>
     <thead>
       <tr>
@@ -32,9 +33,19 @@
         <td id="solar-time" class="loading">—</td>
       </tr>
       <tr>
-        <td>Conflict Exposure (events, last 7 days)</td>
-        <td id="conflict-value" class="loading">Loading…</td>
-        <td id="conflict-time" class="loading">—</td>
+        <td>Political&nbsp;Violence Exposure&nbsp;(pop, 7 days)</td>
+        <td id="political-value" class="loading">Loading…</td>
+        <td id="political-time" class="loading">—</td>
+      </tr>
+      <tr>
+        <td>Organized&nbsp;Violence Exposure&nbsp;(pop, 7 days)</td>
+        <td id="organized-value" class="loading">Loading…</td>
+        <td id="organized-time" class="loading">—</td>
+      </tr>
+      <tr>
+        <td>Demonstration Exposure&nbsp;(pop, 7 days)</td>
+        <td id="demo-value" class="loading">Loading…</td>
+        <td id="demo-time" class="loading">—</td>
       </tr>
       <tr>
         <td>Earthquakes (last 7 days)</td>
@@ -56,98 +67,122 @@
   <div id="last-updated"></div>
 
 <script>
-/* ========= USER CONFIG ========= */
+/***************** USER CONFIG *****************/
 const CONFIG = {
   ACLED_EMAIL: 'tomasbrownnz@gmail.com',
   ACLED_KEY:   '6-alGPb1A63uAIIA2sag',
   FRED_KEY:    '113b186fc2087cecb0b906bd8b994ae4' 
 };
-/* ================================= */
+/**********************************************/
 
-function humanDate(isoOrMillis){
-  return new Date(isoOrMillis).toLocaleString(undefined,{year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'});
-}
+function humanDate(x){return new Date(x).toLocaleString(undefined,{year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'});}  
 
+/* ---------- SOLAR ---------- */
 async function fetchSolar(){
   try{
-    const r = await fetch('https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json');
-    const j = await r.json();
-    const last = j[j.length-1]; // [time,kp,ap] etc.
-    document.getElementById('solar-value').textContent = last[1];
-    document.getElementById('solar-time').textContent  = humanDate(last[0]);
-  }catch(e){ document.getElementById('solar-value').textContent = 'err'; }
+    const r=await fetch('https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json');
+    const j=await r.json();
+    const last=j[j.length-1];
+    document.getElementById('solar-value').textContent=last[1];
+    document.getElementById('solar-time').textContent=humanDate(last[0]);
+  }catch(e){document.getElementById('solar-value').textContent='err';}
 }
 
+/* ---------- EARTHQUAKES ---------- */
 async function fetchQuakes(){
   try{
-    const r = await fetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_week.geojson');
-    const j = await r.json();
-    document.getElementById('quake-value').textContent = j.metadata.count || j.features.length;
-    document.getElementById('quake-time').textContent  = humanDate(j.metadata.generated);
-  }catch(e){ document.getElementById('quake-value').textContent = 'err'; }
+    const r=await fetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_week.geojson');
+    const j=await r.json();
+    document.getElementById('quake-value').textContent=j.metadata.count||j.features.length;
+    document.getElementById('quake-time').textContent=humanDate(j.metadata.generated);
+  }catch(e){document.getElementById('quake-value').textContent='err';}
 }
 
-async function fetchConflicts(){
+/* ---------- ACLED CONFLICT EXPOSURE ---------- */
+async function fetchExposure(){
   if(!CONFIG.ACLED_KEY || CONFIG.ACLED_KEY==='your_acled_api_key'){
-    document.getElementById('conflict-value').textContent = '← add API key';
+    ['political','organized','demo'].forEach(id=>document.getElementById(`${id}-value`).textContent='← add API key');
     return;
   }
-  try{
-    const now = new Date();
-    const start = new Date(now.getTime()-6*24*60*60*1000);
-    const iso = d=>d.toISOString().slice(0,10);
-    const url = `https://api.acleddata.com/acled/read?email=${encodeURIComponent(CONFIG.ACLED_EMAIL)}&key=${CONFIG.ACLED_KEY}&start_date=${iso(start)}&end_date=${iso(now)}&fields=event_type&limit=20000`;
-    const r = await fetch(url);
-    const j = await r.json();
-    const tally = {};
-    (j.data||[]).forEach(ev=>{ tally[ev.event_type]=(tally[ev.event_type]||0)+1; });
-    document.getElementById('conflict-value').textContent = Object.entries(tally).map(([k,v])=>`${k}: ${v}`).join(' | ') || 0;
-    document.getElementById('conflict-time').textContent  = humanDate(now);
-  }catch(e){ document.getElementById('conflict-value').textContent = 'err'; }
-}
 
+  const now   = new Date();
+  const start = new Date(now.getTime()-6*24*60*60*1000); // 7‑day window
+  const iso   = d=>d.toISOString().slice(0,10);
+
+  // Categories follow ACLED Exposure Calculator groupings
+  const MAP = {
+    political : ['Violence against civilians'],
+    organized : ['Battles','Explosions/Remote violence'],
+    demo      : ['Riots','Protests']
+  };
+
+  const encEmail = encodeURIComponent(CONFIG.ACLED_EMAIL);
+  const key      = CONFIG.ACLED_KEY;
+
+  const fetchCat = async catKey => {
+    let total = 0;
+    for(const et of MAP[catKey]){
+      const url = `https://api.acleddata.com/acled/read?terms=accept&email=${encEmail}&key=${key}`+
+                  `&start_date=${iso(start)}&end_date=${iso(now)}`+
+                  `&event_type=${encodeURIComponent(et)}`+
+                  `&population=TRUE&limit=0&format=json`;
+      try{
+        const r = await fetch(url);
+        const j = await r.json();
+        total += (j.data||[]).reduce((s,row)=>s+(+row.population_best||0),0);
+        console.log(j        )
+      }catch{/* ignore this slice */}
+    }
+    document.getElementById(`${catKey}-value`).textContent = total.toLocaleString();
+    document.getElementById(`${catKey}-time`).textContent  = humanDate(now);
+  };
+
+  await Promise.all(Object.keys(MAP).map(fetchCat));
+};
+
+/* ---------- FLU ---------- */
 async function fetchFlu(){
   try{
-    const r = await fetch('https://api.delphi.cmu.edu/epidata/fluview?regions=nat&epiweeks=latest');
-    const j = await r.json();
-    const rec = (j.epidata||[])[0];
+    const r=await fetch('https://api.delphi.cmu.edu/epidata/fluview?regions=nat&epiweeks=latest');
+    const j=await r.json();
+    const rec=(j.epidata||[])[0];
     if(rec){
-      const cases = rec.num_ili ?? rec.ili ?? rec.wili ?? 'n/a';
-      document.getElementById('flu-value').textContent = cases;
-      document.getElementById('flu-time').textContent  = `Epiweek ${rec.epiweek}`;
-    }else{
-      document.getElementById('flu-value').textContent = 'n/a';
+      const cases=rec.num_ili??rec.ili??rec.wili??'n/a';
+      document.getElementById('flu-value').textContent=cases;
+      document.getElementById('flu-time').textContent=`Epiweek ${rec.epiweek}`;
     }
-  }catch(e){ document.getElementById('flu-value').textContent = 'err'; }
+  }catch(e){document.getElementById('flu-value').textContent='err';}
 }
 
-async function fetchFRED() {
-  if (!CONFIG.FRED_KEY) return;
-
-  const fredUrl =
-    `https://api.stlouisfed.org/fred/series/observations` +
-    `?series_id=ICSA&api_key=${CONFIG.FRED_KEY}` +
-    `&file_type=json&limit=5&sort_order=desc`;
-
-  const proxied = `https://api.allorigins.win/raw?url=${encodeURIComponent(fredUrl)}`;
-
-  try {
-    const r  = await fetch(proxied);       // 👈 goes via proxy
-    const j  = await r.json();
-    const obs = j.observations.find(o => o.value && o.value !== '.');
-
-    document.getElementById('fred-value').textContent =
-      Number(obs.value).toLocaleString();
-    document.getElementById('fred-time').textContent = obs.date;
-  } catch (err) {
-    document.getElementById('fred-value').textContent = 'err';
+/* ---------- FRED ---------- */
+async function fetchFRED(){
+  if(!CONFIG.FRED_KEY||CONFIG.FRED_KEY==='your_fred_api_key'){
+    document.getElementById('fred-value').textContent='← add API key';
+    return;
   }
+  const fredUrl=`https://api.stlouisfed.org/fred/series/observations?series_id=ICSA&api_key=${CONFIG.FRED_KEY}&file_type=json&limit=5&sort_order=desc`;
+  const proxied=`https://api.allorigins.win/raw?url=${encodeURIComponent(fredUrl)}`; // bypass CORS
+  try{
+    const r=await fetch(proxied);
+    const j=await r.json();
+    const obs=(j.observations||[]).find(o=>o.value&&o.value!=='.');
+    if(obs){
+      document.getElementById('fred-value').textContent=Number(obs.value).toLocaleString();
+      document.getElementById('fred-time').textContent=obs.date;
+    }
+  }catch(e){document.getElementById('fred-value').textContent='err';}
 }
 
-
-(async function(){
-  await Promise.all([fetchSolar(), fetchQuakes(), fetchConflicts(), fetchFlu(), fetchFRED()]);
-  document.getElementById('last-updated').textContent = 'Updated '+humanDate(Date.now());
+/* ---------- MAIN ---------- */
+(async()=>{
+  await Promise.all([
+    fetchSolar(),
+    fetchQuakes(),
+    fetchExposure(),
+    fetchFlu(),
+    fetchFRED()
+  ]);
+  document.getElementById('last-updated').textContent='Updated '+humanDate(Date.now());
 })();
 </script>
 </body>
