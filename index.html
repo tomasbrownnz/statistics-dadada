@@ -121,22 +121,29 @@ async function fetchFlu(){
   }catch(e){ document.getElementById('flu-value').textContent = 'err'; }
 }
 
-async function fetchFRED(){
-  if(!CONFIG.FRED_KEY || CONFIG.FRED_KEY==='your_fred_api_key'){
-    document.getElementById('fred-value').textContent = '← add API key';
-    return;
+async function fetchFRED() {
+  if (!CONFIG.FRED_KEY) return;
+
+  const fredUrl =
+    `https://api.stlouisfed.org/fred/series/observations` +
+    `?series_id=ICSA&api_key=${CONFIG.FRED_KEY}` +
+    `&file_type=json&limit=5&sort_order=desc`;
+
+  const proxied = `https://api.allorigins.win/raw?url=${encodeURIComponent(fredUrl)}`;
+
+  try {
+    const r  = await fetch(proxied);       // 👈 goes via proxy
+    const j  = await r.json();
+    const obs = j.observations.find(o => o.value && o.value !== '.');
+
+    document.getElementById('fred-value').textContent =
+      Number(obs.value).toLocaleString();
+    document.getElementById('fred-time').textContent = obs.date;
+  } catch (err) {
+    document.getElementById('fred-value').textContent = 'err';
   }
-  try{
-    const url = `https://api.stlouisfed.org/fred/series/observations?series_id=ICSA&api_key=${CONFIG.FRED_KEY}&file_type=json&limit=5&sort_order=desc`;
-    const r = await fetch(url);
-    const j = await r.json();
-    const obs = (j.observations||[]).find(o=>o.value && o.value!=='.');
-    if(obs){
-      document.getElementById('fred-value').textContent = Number(obs.value).toLocaleString();
-      document.getElementById('fred-time').textContent  = obs.date;
-    }
-  }catch(e){ document.getElementById('fred-value').textContent = 'err'; }
 }
+
 
 (async function(){
   await Promise.all([fetchSolar(), fetchQuakes(), fetchConflicts(), fetchFlu(), fetchFRED()]);
